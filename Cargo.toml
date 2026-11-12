@@ -3,6 +3,14 @@ name = "bat-ts-poc"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.95"
+description = "Proof-of-concept: tree-sitter syntax highlighting for bat#3366 via lumis, with benchmarks"
+license = "MIT"
+repository = "https://github.com/karlmoriaty/bat-treesitter-poc"
+readme = "README.md"
+
+[[bin]]
+name = "bat-treesitter-poc"
+path = "src/main.rs"
 
 [dependencies]
 lumis = { version = "0.19.4", default-features = false, features = [
