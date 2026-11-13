@@ -4,25 +4,30 @@ A reproducible proof-of-concept for [bat#3366 — *Use `tree-sitter` to provide 
 
 The maintainers asked for a PoC that could be used for an objective comparison on speed
 (including startup), highlighting quality, language coverage, themes, ease of adding custom
-languages, binary size and compile time. This repository is that PoC, built on
-[`lumis`](https://crates.io/crates/lumis) 0.19.4 (tree-sitter + Neovim themes, native ANSI output).
+languages, binary size and compile time. This repository contains two independent backends:
+
+- [`lumis`](https://crates.io/crates/lumis) 0.19.4 — tree-sitter grammars plus Neovim themes
+- [`giallo`](https://crates.io/crates/giallo) 0.6.0 — TextMate grammars plus a precompiled
+  registry (added at Keats' request)
 
 ## TL;DR
 
-**Not recommended as a backend for `bat`.**
+**Neither backend is a drop-in replacement for `bat`.**
 
-The blocker is memory, not CPU. `lumis` renders the whole document in one pass and keeps the
-parse tree plus highlight structures alive, so peak memory grows linearly with input size
-(roughly 80× the file size). `bat` streams line by line and stays flat at ~9 MB.
+Both are O(n) in memory: they render the whole document and keep intermediate structures alive,
+while `bat` streams line by line and stays flat at ~9 MB. The difference is how much
+intermediate state they keep.
 
-| Input | bat 0.26.1 (syntect) | lumis 0.19.4 | Ratio |
+| Input | bat 0.26.1 (syntect) | lumis 0.19.4 | giallo 0.6.0 |
 |---|---|---|---|
-| 100 KB | 8.9 MB | 14.4 MB | 1.6× |
-| 1 MB | 8.9 MB | 92.6 MB | 10.4× |
-| 10 MB | 9.0 MB | 796.7 MB | **88.5×** |
+| 100 KB | 8.9 MB | 14.4 MB | not measured |
+| 1 MB | 8.9 MB | 92.6 MB | not measured |
+| 10 MB | 9.0 MB | 796.7 MB | **238.4 MB** |
 
-Switching to the streaming writer (`write_highlight_with_options`) does **not** help:
-10 MB peak stayed at 797.1 MB and wall time regressed from 6.6 s to 64.9 s.
+`giallo` is 3.2× faster than `lumis` on the 10 MB corpus and peaks at 30% of lumis' memory, but
+still uses ~24× the input size. Switching `lumis` to the streaming writer
+(`write_highlight_with_options`) does **not** help: the 10 MB peak stayed at 797.1 MB and wall
+time regressed from 6.6 s to 64.9 s.
 
 ## Measurements
 
@@ -42,6 +47,34 @@ because of on-access antivirus scanning (435–711 ms outliers).
 
 `lumis` wins on large files but loses on startup and small files, which is what `bat` is
 usually used for.
+
+### giallo comparison
+
+`giallo` uses TextMate grammars like `syntect`, but ships a precompiled registry
+(`builtin.zst`, loaded in 34.5 ms) instead of parsing grammars at startup. Both tools were run
+on the same 10 MB Rust corpus.
+
+| Metric | lumis | giallo |
+|---|---|---|
+| 24 KB source file | 79.0 ms | 63.8 ms |
+| 10 MB wall time | 6 024 ms | **1 877 ms** |
+| 10 MB peak RSS | 796.4 MB | **238.4 MB** |
+| 10 MB output size | 55.0 MB (4.96 M escapes) | 42.5 MB (2.73 M escapes) |
+| registry / build cost | 0.165 ms | 34.5 ms |
+| highlight only (10 MB) | 6 102 ms | 1 566 ms |
+
+**Licensing note:** `giallo` is licensed under **EUPL-1.2**, which is a copyleft licence. That
+matters if `bat` (MIT/Apache-2.0) wants to link it. It is workable as an optional, opt-in
+dependency, but the licence difference should be called out in `bat`'s licence file before
+adopting it.
+
+### Highlighting quality
+
+Keats pointed out that tree-sitter highlighting quality depends on the query files, and that
+the same theme renders differently across engines (for example
+<https://arborium.bearcove.eu/#python> versus <https://shiki.style/>). This PoC only verifies
+that ANSI output is produced (see `esc_count`); it does not compare token-level colouring
+between the engines.
 
 ### Highlighting configuration cost
 

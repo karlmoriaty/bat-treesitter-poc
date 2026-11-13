@@ -18,8 +18,8 @@ path = "src/main.rs"
 [dependencies]
 lumis = { version = "0.19.4", default-features = false, features = [
     "lang-rust",
-
 ] }
+giallo = { version = "0.6.0", features = ["dump"] }
 
 [profile.release]
 opt-level = 3
